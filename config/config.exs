@@ -8,6 +8,8 @@ use Mix.Config
 # General application configuration
 config :sanbase, ecto_repos: [Sanbase.Repo]
 
+config :sanbase, Sanbase, url: {:system, "SANBASE_URL", "https://sanbase-low-stage.santiment.net"}
+
 config :sanbase, Sanbase.Repo,
   adapter: Ecto.Adapters.Postgres,
   pool_size: 5,
@@ -249,6 +251,11 @@ config :sanbase, Sanbase.Oauth2.Hydra,
 config :sanbase, SanbaseWeb.Graphql.PlugAttack,
   rate_limit_period: {:system, "RATE_LIMIT_PERIOD", "10000"},
   rate_limit_max_requests: {:system, "RATE_LIMIT_MAX_REQUESTS", "40"}
+
+config :sanbase, Sanbase.Discourse,
+  url: {:system, "DISCOURSE_URL", "https://discourse.stage.internal.santiment.net/"},
+  api_key: {:system, "DISCOURSE_API_KEY"},
+  insights_category: {:system, "DISCOURSE_INSIGHTS_CATEGORY", "Sanbase Insights"}
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
