@@ -8,8 +8,6 @@ use Mix.Config
 # General application configuration
 config :sanbase, ecto_repos: [Sanbase.Repo]
 
-config :sanbase, Sanbase, url: {:system, "SANBASE_URL", "https://sanbase-low-stage.santiment.net"}
-
 config :sanbase, Sanbase.Repo,
   adapter: Ecto.Adapters.Postgres,
   pool_size: 5,
