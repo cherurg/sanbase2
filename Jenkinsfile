@@ -1,6 +1,11 @@
 podTemplate(label: 'sanbase-builder', containers: [
   containerTemplate(name: 'docker', image: 'docker', ttyEnabled: true, command: 'cat', envVars: [
     envVar(key: 'DOCKER_HOST', value: 'tcp://docker-host-docker-host:2375')
+  ]),
+  containerTemplate(name: 'awscli', image: 'garland/aws-cli-docker', ttyEnabled: true, command: 'cat', envVars: [
+    envVar(key: 'AWS_DEFAULT_REGION', value: 'eu-central-1'),
+    secretEnvVar(key: 'AWS_ACCESS_KEY_ID', secretName: 'sanbase-bundle-uploader-env', secretKey: 'awsAccessKeyId'),
+    secretEnvVar(key: 'AWS_SECRET_ACCESS_KEY', secretName: 'sanbase-bundle-uploader-env', secretKey: 'awsSecretAccessKey'),
   ])
 ]) {
   node('sanbase-builder') {
@@ -38,10 +43,21 @@ podTemplate(label: 'sanbase-builder', containers: [
               sh "docker build -t ${awsRegistry}/sanbase:${env.BRANCH_NAME} -t ${awsRegistry}/sanbase:${scmVars.GIT_COMMIT} --build-arg SECRET_KEY_BASE=${env.SECRET_KEY_BASE} --build-arg GIT_HEAD=${gitHead} ."
               sh "docker push ${awsRegistry}/sanbase:${env.BRANCH_NAME}"
               sh "docker push ${awsRegistry}/sanbase:${scmVars.GIT_COMMIT}"
+              sh "mkdir -p artifacts"
+              sh "docker create --name sanbase-temp ${awsRegistry}/sanbase:${scmVars.GIT_COMMIT}"
+              sh "docker cp sanbase-temp:/app/lib/sanbase-0.0.1/priv/static ./artifacts/"
+              sh "docker rm sanbase-temp"
             }
           }
         }
       }
+    }
+
+    stage('Copy bundle to S3') {
+      container('awscli') {
+        sh "aws s3 sync ./artifacts/* s3://santiment-bundles/${gitHead}/"
+      }
+
     }
   }
 }
