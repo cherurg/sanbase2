@@ -2,7 +2,8 @@ defmodule SanbaseWeb.Graphql.Resolvers.ProjectResolver do
   require Logger
 
   import Ecto.Query
-  import Absinthe.Resolution.Helpers
+  import Absinthe.Resolution.Helpers, except: [async: 1]
+  import SanbaseWeb.Graphql.Helpers.Async
 
   alias Sanbase.Model.{
     Project,
@@ -108,6 +109,8 @@ defmodule SanbaseWeb.Graphql.Resolvers.ProjectResolver do
 
     {:ok, project}
   end
+
+  def slug(%Project{coinmarketcap_id: coinmarketcap_id}, _, _), do: {:ok, coinmarketcap_id}
 
   def project_by_slug(_parent, %{slug: slug}, _resolution) do
     Project
@@ -562,7 +565,7 @@ defmodule SanbaseWeb.Graphql.Resolvers.ProjectResolver do
   @doc """
   Return the main sale price, which is the maximum token_usd_ico_price from all icos of a project
   """
-  def ico_price(%Project{id: id} = project, _args, _resolution) do
+  def ico_price(%Project{id: id}, _args, _resolution) do
     ico_with_max_price =
       Project
       |> Repo.get(id)

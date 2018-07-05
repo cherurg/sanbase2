@@ -18,7 +18,9 @@ const getOrigin = () => {
   if (process.env.NODE_ENV === 'development') {
     return process.env.REACT_APP_WEBSITE_URL || window.location.origin
   }
-  return window.location.origin
+  return (window.env || {}).WEBSITE_URL ||
+    process.env.REACT_APP_WEBSITE_URL ||
+    window.location.origin
 }
 
 const sanitizeMediumDraftHtml = (html) => sanitizeHtml(html,

@@ -8,10 +8,14 @@ use Mix.Config
 # General application configuration
 config :sanbase, ecto_repos: [Sanbase.Repo]
 
+config :sanbase, Sanbase, environment: "#{Mix.env()}"
+
 config :sanbase, Sanbase.Repo,
   adapter: Ecto.Adapters.Postgres,
-  pool_size: 5,
+  pool_size: 10,
   prepare: :unnamed
+
+config :sanbase, Sanbase.Auth.Hmac, secret_key: {:system, "APIKEY_HMAC_SECRET_KEY", nil}
 
 # Configures the endpoint
 config :sanbase, SanbaseWeb.Endpoint,

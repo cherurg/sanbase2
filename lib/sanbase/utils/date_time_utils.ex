@@ -1,20 +1,16 @@
 defmodule Sanbase.DateTimeUtils do
   def seconds_after(seconds, datetime \\ DateTime.utc_now()) do
     datetime
-    |> DateTime.to_unix()
-    |> Kernel.+(seconds)
-    |> DateTime.from_unix!()
+    |> Timex.shift(seconds: seconds)
   end
 
   def days_after(days, datetime \\ DateTime.utc_now()) do
     seconds_after(days * 60 * 60 * 24, datetime)
   end
 
-  def seconds_ago(seconds) do
-    DateTime.utc_now()
-    |> DateTime.to_unix()
-    |> Kernel.-(seconds)
-    |> DateTime.from_unix!()
+  def seconds_ago(seconds, datetime \\ DateTime.utc_now()) do
+    datetime
+    |> Timex.shift(seconds: -seconds)
   end
 
   def minutes_ago(minutes) do
@@ -53,5 +49,19 @@ defmodule Sanbase.DateTimeUtils do
       (Ecto.Date.to_iso8601(ecto_date) <> "T00:00:00Z") |> DateTime.from_iso8601()
 
     datetime
+  end
+
+  def compound_duration_to_seconds(interval) do
+    {int_interval, duration_index} = Integer.parse(interval)
+
+    case duration_index do
+      "ns" -> div(int_interval, 1_000_000_000)
+      "s" -> int_interval
+      "m" -> int_interval * 60
+      "h" -> int_interval * 60 * 60
+      "d" -> int_interval * 24 * 60 * 60
+      "w" -> int_interval * 7 * 24 * 60 * 60
+      _ -> int_interval
+    end
   end
 end

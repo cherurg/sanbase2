@@ -2,7 +2,8 @@ import React from 'react'
 import {
   Route as BasicRoute,
   Switch,
-  Redirect
+  Redirect,
+  Link
 } from 'react-router-dom'
 import { FadeInDown } from 'animate-components'
 import Loadable from 'react-loadable'
@@ -20,7 +21,7 @@ import CashflowMobile from './pages/CashflowMobile'
 import CurrenciesMobile from './pages/CurrenciesMobile'
 import Roadmap from './pages/Roadmap'
 import Signals from './pages/Signals'
-import Account from './pages/Account'
+import Account from './pages/Account/Account'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import BuildChallenge from './pages/BuildChallenge'
 import EmailLoginVerification from './pages/EmailLoginVerification'
@@ -85,7 +86,8 @@ export const App = ({
   isDesktop,
   isLoggedIn,
   isFullscreenMobile,
-  isOffline
+  isOffline,
+  hasUsername
 }) => (
   <div className='App'>
     {isOffline &&
@@ -96,6 +98,14 @@ export const App = ({
       as='div'>
         OFFLINE
     </FadeInDown>}
+    {isLoggedIn && !hasUsername &&
+    <div className='no-username-status-message'>
+      <Link to='/account'>
+        <i className='exclamation triangle icon' />
+        Without a username, some functionality will be restricted. Please, click on the notification to proceed to the account settings. <i className='exclamation triangle icon' />
+      </Link>
+    </div>
+    }
     {isFullscreenMobile
       ? undefined
       : (isDesktop
@@ -148,6 +158,7 @@ export const App = ({
         <Route exact path='/insights/popular' component={LoadableInsights} />
         <Route exact path='/insights/my' component={LoadableInsights} />
         <Route exact path='/insights/users/:userId' component={LoadableInsights} />
+        <Route exact path='/insights/tags/:tagName' component={LoadableInsights} />
         <Route exact path='/insights/:insightId' component={LoadableInsight} />
         <Route exact path='/projects/:slug' render={props => (
           <LoadableDetailedPage isDesktop={isDesktop} {...props} />)} />
@@ -181,7 +192,8 @@ const mapStateToProps = state => {
   return {
     isLoggedIn: !!state.user.token,
     isFullscreenMobile: state.detailedPageUi.isFullscreenMobile,
-    isOffline: !state.rootUi.isOnline
+    isOffline: !state.rootUi.isOnline,
+    hasUsername: !!state.user.data.username
   }
 }
 

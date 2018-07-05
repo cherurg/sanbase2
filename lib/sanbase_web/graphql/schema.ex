@@ -13,7 +13,8 @@ defmodule SanbaseWeb.Graphql.Schema do
     TechIndicatorsResolver,
     FileResolver,
     PostResolver,
-    MarketSegmentResolver
+    MarketSegmentResolver,
+    ApikeyResolver
   }
 
   import SanbaseWeb.Graphql.Helpers.Cache, only: [cache_resolve: 1]
@@ -22,8 +23,10 @@ defmodule SanbaseWeb.Graphql.Schema do
   alias SanbaseWeb.Graphql.Complexity.TechIndicatorsComplexity
 
   alias SanbaseWeb.Graphql.Middlewares.{
+    MultipleAuth,
     BasicAuth,
     JWTAuth,
+    ApikeyAuth,
     ProjectPermissions,
     PostPermissions,
     ApiDelay
@@ -126,12 +129,13 @@ defmodule SanbaseWeb.Graphql.Schema do
       cache_resolve(&ProjectResolver.all_projects_with_eth_contract_info/3)
     end
 
-    @desc "Fetch price history for a given ticker and time interval."
+    @desc "Fetch price history for a given slug and time interval."
     field :history_price, list_of(:price_point) do
-      arg(:ticker, non_null(:string))
+      arg(:slug, :string)
+      arg(:ticker, :string, deprecate: "Use slug instead of ticker")
       arg(:from, non_null(:datetime))
       arg(:to, :datetime, default_value: DateTime.utc_now())
-      arg(:interval, :string, default_value: "1h")
+      arg(:interval, :string, default_value: "")
 
       complexity(&PriceComplexity.history_price/3)
       cache_resolve(&PriceResolver.history_price/3)
@@ -143,23 +147,25 @@ defmodule SanbaseWeb.Graphql.Schema do
     end
 
     @desc ~s"""
-    Returns a list of github activity for a given ticker and time interval.
+    Returns a list of github activity for a given slug and time interval.
 
     Arguments description:
       * interval - an integer followed by one of: `s`, `m`, `h`, `d` or `w`
       * transform - one of the following:
         1. None (default)
         2. movingAverage
-      * movingAverageInterval - used only if transform is `movingAverage`.
-        Returns the simple moving average of the data calculated with this argument.
+      * movingAverageIntervalBase - used only if transform is `movingAverage`.
+        An integer followed by one of: `s`, `m`, `h`, `d` or `w`, representing time units.
+        It is used to calculate the moving avarage interval.
     """
     field :github_activity, list_of(:activity_point) do
-      arg(:ticker, non_null(:string))
+      arg(:slug, :string)
+      arg(:ticker, :string, deprecate: "Use slug instead of ticker")
       arg(:from, non_null(:datetime))
       arg(:to, :datetime, default_value: DateTime.utc_now())
-      arg(:interval, :string, default_value: "1h")
+      arg(:interval, :string, default_value: "")
       arg(:transform, :string, default_value: "None")
-      arg(:moving_average_interval, :integer, default_value: 10)
+      arg(:moving_average_interval_base, :string, default_value: "1w")
 
       cache_resolve(&GithubResolver.activity/3)
     end
@@ -176,7 +182,7 @@ defmodule SanbaseWeb.Graphql.Schema do
       arg(:ticker, non_null(:string))
       arg(:from, non_null(:datetime))
       arg(:to, :datetime, default_value: DateTime.utc_now())
-      arg(:interval, :string, default_value: "6h")
+      arg(:interval, :string, default_value: "")
 
       cache_resolve(&TwitterResolver.history_twitter_data/3)
     end
@@ -192,12 +198,10 @@ defmodule SanbaseWeb.Graphql.Schema do
     Grouping by interval works by summing all burn rate records in the interval.
     """
     field :burn_rate, list_of(:burn_rate_data) do
-      arg(:ticker, :string, deprecate: "Use slug instead of ticker")
-      # TODO: Make non_null after removing :ticker
-      arg(:slug, :string)
+      arg(:slug, non_null(:string))
       arg(:from, non_null(:datetime))
       arg(:to, non_null(:datetime))
-      arg(:interval, :string, default_value: "1h")
+      arg(:interval, :string, default_value: "")
 
       middleware(ApiDelay)
 
@@ -213,12 +217,10 @@ defmodule SanbaseWeb.Graphql.Schema do
     Grouping by interval works by summing all transaction volume records in the interval.
     """
     field :transaction_volume, list_of(:transaction_volume) do
-      arg(:ticker, :string, deprecate: "Use slug instead of ticker")
-      # TODO: Make non_null after removing :ticker
-      arg(:slug, :string)
+      arg(:slug, non_null(:string))
       arg(:from, non_null(:datetime))
       arg(:to, non_null(:datetime))
-      arg(:interval, :string, default_value: "1h")
+      arg(:interval, :string, default_value: "")
 
       middleware(ApiDelay)
 
@@ -237,12 +239,10 @@ defmodule SanbaseWeb.Graphql.Schema do
     the exact number of unique addresses for each day.
     """
     field :daily_active_addresses, list_of(:active_addresses) do
-      arg(:ticker, :string, deprecate: "Use slug instead of ticker")
-      # TODO: Make non_null after removing :ticker
-      arg(:slug, :string)
+      arg(:slug, non_null(:string))
       arg(:from, non_null(:datetime))
       arg(:to, non_null(:datetime))
-      arg(:interval, :string, default_value: "1d")
+      arg(:interval, :string, default_value: "")
 
       middleware(ApiDelay)
 
@@ -308,12 +308,10 @@ defmodule SanbaseWeb.Graphql.Schema do
     This query returns the difference IN-OUT calculated for each interval.
     """
     field :exchange_funds_flow, list_of(:funds_flow) do
-      arg(:ticker, :string, deprecate: "Use slug instead of ticker")
-      # TODO: Make non_null after removing :ticker
-      arg(:slug, :string)
+      arg(:slug, non_null(:string))
       arg(:from, non_null(:datetime))
       arg(:to, non_null(:datetime))
-      arg(:interval, :string, default_value: "1d")
+      arg(:interval, :string, default_value: "")
 
       middleware(ApiDelay)
 
@@ -395,7 +393,10 @@ defmodule SanbaseWeb.Graphql.Schema do
       arg(:interval, :string, default_value: "1d")
       arg(:result_size_tail, :integer, default_value: 0)
 
-      middleware(JWTAuth, san_tokens: 1000)
+      middleware(MultipleAuth, [
+        {JWTAuth, san_tokens: 1000},
+        {ApikeyAuth, san_tokens: 1000}
+      ])
 
       complexity(&TechIndicatorsComplexity.emojis_sentiment/3)
       resolve(&TechIndicatorsResolver.emojis_sentiment/3)
@@ -563,6 +564,28 @@ defmodule SanbaseWeb.Graphql.Schema do
       # Allow this mutation to be executed when the user has not accepted the privacy policy.
       middleware(JWTAuth, allow_access: true)
       resolve(&AccountResolver.update_terms_and_conditions/3)
+    end
+
+    @desc ~s"""
+    Generates a new apikey. There could be more than one apikey per user at every
+    given time. Only JWT authenticated users can generate apikeys. The apikeys can
+     be retrieved via the `apikeys` fields of the `user` GQL type.
+    """
+    field :generate_apikey, :user do
+      middleware(JWTAuth)
+      resolve(&ApikeyResolver.generate_apikey/3)
+    end
+
+    @desc ~s"""
+    Revoke the given apikey if only the currently logged in user is the owner of the
+    apikey. Only JWT authenticated users can revoke apikeys. You cannot revoke the apikey
+    using the apikey.
+    """
+    field :revoke_apikey, :user do
+      arg(:apikey, non_null(:string))
+
+      middleware(JWTAuth)
+      resolve(&ApikeyResolver.revoke_apikey/3)
     end
   end
 end

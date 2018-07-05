@@ -3,15 +3,26 @@ defmodule SanbaseWeb.Graphql.PricesApiTest do
 
   alias Sanbase.Prices.Store
   alias Sanbase.Influxdb.Measurement
+  alias Sanbase.Model.Project
+  alias Sanbase.Repo
 
   import Plug.Conn
   import SanbaseWeb.Graphql.TestHelpers
 
   setup do
-    Application.fetch_env!(:sanbase, Sanbase.Prices.Store)
-    |> Keyword.get(:database)
-    |> Instream.Admin.Database.create()
-    |> Store.execute()
+    Store.create_db()
+
+    slug1 = "tester"
+
+    %Project{}
+    |> Project.changeset(%{name: "Project1", ticker: "TEST", coinmarketcap_id: slug1})
+    |> Repo.insert!()
+
+    slug2 = "tester2"
+
+    %Project{}
+    |> Project.changeset(%{name: "Project2", ticker: "XYZ", coinmarketcap_id: slug2})
+    |> Repo.insert!()
 
     Store.drop_measurement("TEST_BTC")
     Store.drop_measurement("TEST_USD")
@@ -76,18 +87,24 @@ defmodule SanbaseWeb.Graphql.PricesApiTest do
       datetime1: datetime1,
       datetime2: datetime2,
       datetime3: datetime3,
-      years_ago: years_ago
+      years_ago: years_ago,
+      slug1: slug1,
+      slug2: slug2
     ]
   end
 
-  test "no information is available for a ticker", context do
+  test "no information is available for a non existing slug", context do
     Store.drop_measurement("SAN_USD")
 
     query = """
     {
-      historyPrice(ticker: "SAN", from: "#{context.datetime1}", to: "#{context.datetime2}", interval: "1h") {
-        datetime
-        priceUsd
+      historyPrice(
+        slug: "non_existing 1237819",
+        from: "#{context.datetime1}",
+        to: "#{context.datetime2}",
+        interval: "1h") {
+          datetime
+          priceUsd
       }
     }
     """
@@ -99,10 +116,41 @@ defmodule SanbaseWeb.Graphql.PricesApiTest do
     assert json_response(result, 200)["data"]["historyPrice"] == []
   end
 
+  test "data aggregation for automatically calculated intervals", context do
+    query = """
+    {
+      historyPrice(slug: "#{context.slug1}", from: "#{context.datetime1}", to: "#{
+      context.datetime3
+    }") {
+        datetime
+        priceUsd
+        priceBtc
+        marketcap
+        volume
+      }
+    }
+    """
+
+    result =
+      context.conn
+      |> post("/graphql", query_skeleton(query, "historyPrice"))
+
+    history_price = json_response(result, 200)["data"]["historyPrice"]
+    assert Enum.count(history_price) == 2
+
+    [history_price | _] = history_price
+    assert history_price["priceUsd"] == 20
+    assert history_price["priceBtc"] == 1000
+    assert history_price["volume"] == 200
+    assert history_price["marketcap"] == 500
+  end
+
   test "data aggregation for larger intervals", context do
     query = """
     {
-      historyPrice(ticker: "TEST", from: "#{context.datetime1}", to: "#{context.datetime3}", interval: "2d") {
+      historyPrice(slug: "#{context.slug1}", from: "#{context.datetime1}", to: "#{
+      context.datetime3
+    }", interval: "2d") {
         datetime
         priceUsd
         priceBtc
@@ -120,20 +168,24 @@ defmodule SanbaseWeb.Graphql.PricesApiTest do
     assert Enum.count(history_price) == 1
 
     [history_price | _] = history_price
-    assert history_price["priceUsd"] == "21"
-    assert history_price["priceBtc"] == "1100"
-    assert history_price["volume"] == "300"
-    assert history_price["marketcap"] == "650"
+    assert history_price["priceUsd"] == 21
+    assert history_price["priceBtc"] == 1100
+    assert history_price["volume"] == 300
+    assert history_price["marketcap"] == 650
   end
 
   test "too complex queries are denied", context do
     query = """
     {
-      historyPrice(ticker: "TEST", from: "#{context.years_ago}", to: "#{context.datetime1}", interval: "5m"){
-        priceUsd
-        priceBtc
-        datetime
-        volume
+      historyPrice(
+        slug: "#{context.slug1}",
+        from: "#{context.years_ago}",
+        to: "#{context.datetime1}",
+        interval: "5m"){
+          priceUsd
+          priceBtc
+          datetime
+          volume
       }
     }
     """
@@ -149,7 +201,10 @@ defmodule SanbaseWeb.Graphql.PricesApiTest do
   test "default arguments are correctly set", context do
     query = """
     {
-      historyPrice(ticker: "TEST", from: "#{context.datetime1}"){
+      historyPrice(
+        slug: "#{context.slug1}",
+        from: "#{context.datetime1}",
+        interval: "1h"){
         priceUsd
       }
     }
@@ -162,18 +217,22 @@ defmodule SanbaseWeb.Graphql.PricesApiTest do
 
     history_price = json_response(result, 200)["data"]["historyPrice"]
     assert Enum.count(history_price) == 2
-    assert Enum.at(history_price, 0)["priceUsd"] == "20"
-    assert Enum.at(history_price, 1)["priceUsd"] == "22"
+    assert Enum.at(history_price, 0)["priceUsd"] == 20
+    assert Enum.at(history_price, 1)["priceUsd"] == 22
   end
 
   test "complexity is 0 with basic authentication", context do
     query = """
     {
-      historyPrice(ticker: "TEST", from: "#{context.years_ago}", to: "#{context.datetime1}", interval: "5m"){
-        priceUsd
-        priceBtc
-        datetime
-        volume
+      historyPrice(
+        slug: "#{context.slug1}",
+        from: "#{context.years_ago}",
+        to: "#{context.datetime1}",
+        interval: "5m"){
+          priceUsd
+          priceBtc
+          datetime
+          volume
       }
     }
     """
@@ -191,10 +250,14 @@ defmodule SanbaseWeb.Graphql.PricesApiTest do
 
     query = """
     {
-      historyPrice(ticker: "TOTAL_MARKET", from: "#{context.datetime1}", to: "#{context.datetime2}", interval: "1h") {
-        datetime
-        volume
-        marketcap
+      historyPrice(
+        slug: "TOTAL_MARKET",
+        from: "#{context.datetime1}",
+        to: "#{context.datetime2}",
+        interval: "1h") {
+          datetime
+          volume
+          marketcap
       }
     }
     """
@@ -209,7 +272,10 @@ defmodule SanbaseWeb.Graphql.PricesApiTest do
   test "default arguments for total marketcap are correctly set", context do
     query = """
     {
-      historyPrice(ticker: "TOTAL_MARKET", from: "#{context.datetime1}"){
+      historyPrice(
+        slug: "TOTAL_MARKET",
+        from: "#{context.datetime1}",
+        interval: "1h"){
         datetime
         volume
         marketcap
@@ -224,10 +290,10 @@ defmodule SanbaseWeb.Graphql.PricesApiTest do
 
     history_price = json_response(result, 200)["data"]["historyPrice"]
     assert Enum.count(history_price) == 2
-    assert Enum.at(history_price, 0)["volume"] == "1200"
-    assert Enum.at(history_price, 0)["marketcap"] == "1500"
-    assert Enum.at(history_price, 1)["volume"] == "1300"
-    assert Enum.at(history_price, 1)["marketcap"] == "1800"
+    assert Enum.at(history_price, 0)["volume"] == 1200
+    assert Enum.at(history_price, 0)["marketcap"] == 1500
+    assert Enum.at(history_price, 1)["volume"] == 1300
+    assert Enum.at(history_price, 1)["marketcap"] == 1800
   end
 
   defp basic_auth() do
