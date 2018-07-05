@@ -55,7 +55,8 @@ podTemplate(label: 'sanbase-builder', containers: [
 
     stage('Copy bundle to S3') {
       container('awscli') {
-        sh "aws s3 sync ./artifacts/* s3://santiment-bundles/${gitHead}/"
+        sh 'echo \'window.env = { WEBSITE_URL: "https://sanbase-low.santiment.net", RAVEN_DSN: "https://3efd8905d47f4aedb0a76aa23b058d33@sentry.production.internal.santiment.net/2", };\' > ./artifacts/static/env.js'
+        sh 'cd ./artifacts/static/ && aws s3 sync . s3://santiment-bundles/'
       }
 
     }
