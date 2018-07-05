@@ -69,7 +69,7 @@ defmodule Sanbase.Mixfile do
       {:absinthe_plug, "~> 1.4.0"},
       {:faktory_worker_ex, git: "https://github.com/santiment/faktory_worker_ex"},
       {:temp, "~> 0.4"},
-      {:httpoison, "~> 0.13"},
+      {:httpoison, "~> 1.2", override: true},
       {:floki, "~> 0.20"},
       {:sentry, "~> 6.0.4"},
       {:extwitter, "~> 0.9.0"},
@@ -89,7 +89,8 @@ defmodule Sanbase.Mixfile do
       {:excoveralls, "~> 0.8", optional: true, only: [:dev, :test]},
       {:observer_cli, "~> 1.3"},
       {:plug_attack, "~> 0.3.1"},
-      {:earmark, "~> 1.2"}
+      {:earmark, "~> 1.2"},
+      {:clickhouse_ecto, "~> 0.2"}
     ]
   end
 
