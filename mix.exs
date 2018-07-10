@@ -90,7 +90,7 @@ defmodule Sanbase.Mixfile do
       {:observer_cli, "~> 1.3"},
       {:plug_attack, "~> 0.3.1"},
       {:earmark, "~> 1.2"},
-      {:clickhouse_ecto, "~> 0.2"}
+      {:clickhouse_ecto, git: "https://github.com/appodeal/clickhouse_ecto"}
     ]
   end
 
@@ -104,7 +104,7 @@ defmodule Sanbase.Mixfile do
     [
       "ecto.setup": ["load_dotenv", "ecto.create", "ecto.load", "run priv/repo/seeds.exs"],
       "ecto.reset": ["load_dotenv", "ecto.drop", "ecto.setup"],
-      "ecto.migrate": ["load_dotenv", "ecto.migrate", "ecto.dump"],
+      "ecto.migrate": ["load_dotenv", "ecto.migrate -r Sanbase.Repo", "ecto.dump"],
       "ecto.rollback": ["load_dotenv", "ecto.rollback", "ecto.dump"],
       test: ["load_dotenv", "ecto.create --quiet", "ecto.load", "test"]
     ]
